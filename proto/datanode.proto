@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+service DataNodeService {
+    rpc StoreBlock (BlockData) returns (StoreResponse);
+    rpc RetrieveBlock (BlockRequest) returns (BlockData);
+    rpc ReplicateBlock (ReplicationRequest) returns (ReplicationResponse);
+    rpc Heartbeat (HeartbeatRequest) returns (HeartbeatResponse);
+}
+
+message BlockData {
+    string block_id = 1;
+    bytes content = 2;
+    string filename = 3;
+}
+
+message StoreResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message BlockRequest {
+    string block_id = 1;
+}
+
+message ReplicationRequest {
+    BlockData block = 1;
+    string target_datanode = 2;
+}
+
+message ReplicationResponse {
+    bool success = 1;
+}
+
+message HeartbeatRequest {
+    string datanode_id = 1;
+}
+
+message HeartbeatResponse {
+    bool active = 1;
+}
