@@ -1,0 +1,27 @@
+# Dependencias principales
+grpcio==1.62.1
+grpcio-tools==1.62.1
+protobuf==4.25.3
+pyyaml==6.0.1
+
+# Utilidades y logging
+python-dotenv==1.0.1
+loguru==0.7.2
+tqdm==4.66.2  # Para barras de progreso en transferencias
+
+# Desarrollo y testing
+pytest==8.0.2
+pytest-cov==4.1.0
+mypy==1.8.0
+flake8==7.0.0
+
+# Manejo de archivos
+filelock==3.13.1
+checksumdir==1.2.0
+
+# Networking
+requests==2.31.0
+urllib3==2.2.1
+
+# Seguridad (opcional)
+cryptography==42.0.4
