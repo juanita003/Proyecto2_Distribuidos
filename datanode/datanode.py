@@ -6,6 +6,7 @@ import sys
 import time
 import logging
 import threading
+import requests
 
 # Agregar el directorio actual al path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -18,19 +19,42 @@ try:
     import namenode_pb2_grpc
 except ImportError as e:
     print(f"Error importando archivos proto: {e}")
-    print("Ejecuta: python -m grpc_tools.protoc -I../proto --python_out=. --grpc_python_out=. ../proto/namenode.proto")
-    print("Y también: python -m grpc_tools.protoc -I../proto --python_out=. --grpc_python_out=. ../proto/datanode.proto")
     sys.exit(1)
 
 class DataNode(datanode_pb2_grpc.DataNodeServiceServicer):
-    def __init__(self, config, node_id=0):
+    def __init__(self, config):
         self.config = config
-        self.node_id = node_id
-        self.blocks_dir = f"blocks_storage"
+        
+        # Obtener mi IP pública para identificarme
+        try:
+            self.my_ip = requests.get('http://169.254.169.254/latest/meta-data/public-ipv4', timeout=5).text
+            print(f"📍 Mi IP pública: {self.my_ip}")
+        except:
+            self.my_ip = "localhost"
+            print("⚠️  No se pudo obtener IP pública, usando localhost")
+        
+        # Buscar mi configuración en la lista de datanodes
+        self.my_config = None
+        self.node_id = None
+        
+        for i, dn_config in enumerate(config['datanodes']):
+            if dn_config['host'] == self.my_ip or dn_config['host'] == "localhost":
+                self.my_config = dn_config
+                self.node_id = i
+                break
+        
+        if self.my_config is None:
+            print(f"❌ Error: No se encontró configuración para IP {self.my_ip}")
+            print("   Asegúrate de que tu IP esté en config.yaml")
+            sys.exit(1)
+        
+        print(f"✅ DataNode configurado - ID: {self.node_id}, Puerto: {self.my_config['port']}")
+        
+        self.blocks_dir = f"blocks_storage_{self.node_id}"
         self.ensure_blocks_directory()
         self.namenode_stub = None
         
-        # Esperar un poco antes de registrarse para dar tiempo al NameNode
+        # Esperar un poco antes de registrarse
         time.sleep(2)
         self.register_with_namenode()
         
@@ -56,21 +80,9 @@ class DataNode(datanode_pb2_grpc.DataNodeServiceServicer):
                 channel = grpc.insecure_channel(f"{nn_host}:{nn_port}")
                 self.namenode_stub = namenode_pb2_grpc.NameNodeServiceStub(channel)
                 
-                # Obtener la IP pública de esta instancia
-                import requests
-                try:
-                    my_ip = requests.get('http://169.254.169.254/latest/meta-data/public-ipv4', timeout=5).text
-                    print(f"📍 IP pública detectada: {my_ip}")
-                except:
-                    my_ip = "localhost"
-                    print("⚠️  No se pudo obtener IP pública, usando localhost")
-                
-                # Usar el puerto configurado para este DataNode
-                my_port = self.config['datanodes'][self.node_id]['port']
-                
                 request = namenode_pb2.DataNodeInfo(
-                    host=my_ip,
-                    port=my_port
+                    host=self.my_ip,
+                    port=self.my_config['port']
                 )
                 
                 response = self.namenode_stub.RegisterDataNode(request)
@@ -179,7 +191,7 @@ class DataNode(datanode_pb2_grpc.DataNodeServiceServicer):
             logging.error(f"Error listando bloques: {e}")
             return datanode_pb2.ListBlocksResponse(block_ids=[])
 
-def serve(node_id=0):
+def serve():
     # Cargar configuración
     config_path = os.path.join(os.path.dirname(current_dir), 'config.yaml')
     
@@ -194,24 +206,19 @@ def serve(node_id=0):
         print(f"Error leyendo config.yaml: {e}")
         return
     
-    if node_id >= len(config['datanodes']):
-        print(f"Error: node_id {node_id} no existe en la configuración")
-        return
-    
     # Crear servidor
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    datanode = DataNode(config, node_id)
+    datanode = DataNode(config)
     datanode_pb2_grpc.add_DataNodeServiceServicer_to_server(datanode, server)
     
-    # Configurar puerto
-    dn_config = config['datanodes'][node_id]
-    port = dn_config['port']
+    # Usar el puerto de la configuración encontrada
+    port = datanode.my_config['port']
     listen_addr = f"[::]:{port}"
     
     server.add_insecure_port(listen_addr)
     server.start()
     
-    print(f"✅ DataNode {node_id} running on port {port}")
+    print(f"✅ DataNode {datanode.node_id} running on port {port}")
     print(f"   Listening on {listen_addr}")
     print(f"   Blocks directory: {datanode.blocks_dir}")
     print("Press Ctrl+C to stop...")
@@ -219,19 +226,13 @@ def serve(node_id=0):
     try:
         server.wait_for_termination()
     except KeyboardInterrupt:
-        print(f"\n🛑 Shutting down DataNode {node_id}...")
+        print(f"\n🛑 Shutting down DataNode {datanode.node_id}...")
         server.stop(0)
 
 if __name__ == '__main__':
-    import argparse
-    
-    parser = argparse.ArgumentParser(description='DataNode para el sistema de archivos distribuido')
-    parser.add_argument('--node-id', type=int, default=0, help='ID del DataNode (0 o 1)')
-    args = parser.parse_args()
-    
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s'
     )
     
-    serve(args.node_id)
+    serve()
