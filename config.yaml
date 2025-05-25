@@ -3,7 +3,7 @@ namenode:
   port: 50051
 
 datanodes:
-  - host: "ec2-18-234-94-209.compute-1.amazonaws.com"
+  - host: "ec2-44-212-74-74.compute-1.amazonaws.com"
     port: 50052
-  - host: "ec2-54-145-178-98.compute-1.amazonaws.com"
+  - host: "ec2-54-165-217-87.compute-1.amazonaws.com"
     port: 50052
