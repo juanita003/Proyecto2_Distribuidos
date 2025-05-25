@@ -1,13 +1,11 @@
 import grpc
 from concurrent import futures
 import yaml
-import sys
 import os
 
-# Agregar el directorio padre al path para importar proto
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from proto import namenode_pb2, namenode_pb2_grpc
+# Importar los archivos generados directamente desde este directorio
+import namenode_pb2
+import namenode_pb2_grpc
 from metadata import MetadataStore
 import logging
 
@@ -58,7 +56,7 @@ class NameNode(namenode_pb2_grpc.NameNodeServiceServicer):
 
 def serve():
     # Buscar config.yaml en el directorio padre
-    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config.yaml')
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'config.yaml')
     
     with open(config_path) as f:
         config = yaml.safe_load(f)
