@@ -3,7 +3,8 @@ import os
 
 class MetadataStore:
     def __init__(self):
-        self.metadata_file = "metadata.json"
+        # Guardar metadata en el directorio namenode
+        self.metadata_file = os.path.join(os.path.dirname(__file__), "metadata.json")
         self.metadata = {
             "files": {},
             "blocks": {}
@@ -12,12 +13,22 @@ class MetadataStore:
 
     def _load_metadata(self):
         if os.path.exists(self.metadata_file):
-            with open(self.metadata_file) as f:
-                self.metadata = json.load(f)
+            try:
+                with open(self.metadata_file) as f:
+                    self.metadata = json.load(f)
+            except (json.JSONDecodeError, FileNotFoundError):
+                # Si hay error al cargar, inicializar con metadata vacía
+                self.metadata = {
+                    "files": {},
+                    "blocks": {}
+                }
 
     def _save_metadata(self):
-        with open(self.metadata_file, 'w') as f:
-            json.dump(self.metadata, f)
+        try:
+            with open(self.metadata_file, 'w') as f:
+                json.dump(self.metadata, f, indent=2)
+        except Exception as e:
+            print(f"Error saving metadata: {e}")
 
     def add_file(self, filename, blocks):
         self.metadata["files"][filename] = {
@@ -34,6 +45,7 @@ class MetadataStore:
         return {
             block_id: self.metadata["blocks"][block_id]
             for block_id in self.metadata["files"][filename]["blocks"]
+            if block_id in self.metadata["blocks"]
         }
 
     def list_files(self, path="/"):

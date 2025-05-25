@@ -1,5 +1,5 @@
 namenode:
-  host: "ec2-3-92-73-140.compute-1.amazonaws.com "
+  host: "ec2-3-92-73-140.compute-1.amazonaws.com"
   port: 50051
 
 datanodes:

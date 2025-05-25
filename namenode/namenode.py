@@ -1,6 +1,12 @@
 import grpc
 from concurrent import futures
 import yaml
+import sys
+import os
+
+# Agregar el directorio padre al path para importar proto
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from proto import namenode_pb2, namenode_pb2_grpc
 from metadata import MetadataStore
 import logging
@@ -46,8 +52,15 @@ class NameNode(namenode_pb2_grpc.NameNodeServiceServicer):
             ]) for bid, dns in blocks.items()
         ])
 
+    def ListFiles(self, request, context):
+        files = self.metadata.list_files(request.path)
+        return namenode_pb2.ListResponse(files=files)
+
 def serve():
-    with open('config.yaml') as f:
+    # Buscar config.yaml en el directorio padre
+    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config.yaml')
+    
+    with open(config_path) as f:
         config = yaml.safe_load(f)
     
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
@@ -55,9 +68,13 @@ def serve():
     namenode_pb2_grpc.add_NameNodeServiceServicer_to_server(namenode, server)
     
     nn_config = config['namenode']
-    server.add_insecure_port(f"{nn_config['host']}:{nn_config['port']}")
+    # Limpiar espacios en blanco del host
+    host = nn_config['host'].strip()
+    port = nn_config['port']
+    
+    server.add_insecure_port(f"[::]:{port}")  # Escuchar en todas las interfaces
     server.start()
-    print(f"NameNode running on {nn_config['host']}:{nn_config['port']}")
+    print(f"NameNode running on {host}:{port}")
     server.wait_for_termination()
 
 if __name__ == '__main__':
