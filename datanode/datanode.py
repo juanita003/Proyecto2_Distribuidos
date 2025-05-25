@@ -14,22 +14,24 @@ sys.path.insert(0, current_dir)
 try:
     import datanode_pb2
     import datanode_pb2_grpc
-    # Importar también los archivos del namenode para registro
-    sys.path.insert(0, os.path.join(os.path.dirname(current_dir), 'namenode'))
     import namenode_pb2
     import namenode_pb2_grpc
 except ImportError as e:
     print(f"Error importando archivos proto: {e}")
-    print("Ejecuta primero: python -m grpc_tools.protoc -I../proto --python_out=. --grpc_python_out=. ../proto/datanode.proto")
+    print("Ejecuta: python -m grpc_tools.protoc -I../proto --python_out=. --grpc_python_out=. ../proto/namenode.proto")
+    print("Y también: python -m grpc_tools.protoc -I../proto --python_out=. --grpc_python_out=. ../proto/datanode.proto")
     sys.exit(1)
 
 class DataNode(datanode_pb2_grpc.DataNodeServiceServicer):
     def __init__(self, config, node_id=0):
         self.config = config
         self.node_id = node_id
-        self.blocks_dir = f"blocks_node_{node_id}"
+        self.blocks_dir = f"blocks_storage"
         self.ensure_blocks_directory()
         self.namenode_stub = None
+        
+        # Esperar un poco antes de registrarse para dar tiempo al NameNode
+        time.sleep(2)
         self.register_with_namenode()
         
     def ensure_blocks_directory(self):
@@ -40,30 +42,52 @@ class DataNode(datanode_pb2_grpc.DataNodeServiceServicer):
     
     def register_with_namenode(self):
         """Registrarse con el NameNode"""
-        try:
-            nn_config = self.config['namenode']
-            nn_host = nn_config['host'].strip()
-            nn_port = nn_config['port']
-            
-            channel = grpc.insecure_channel(f"{nn_host}:{nn_port}")
-            self.namenode_stub = namenode_pb2_grpc.NameNodeServiceStub(channel)
-            
-            # Obtener configuración de este datanode
-            dn_config = self.config['datanodes'][self.node_id]
-            
-            request = namenode_pb2.DataNodeInfo(
-                host=dn_config['host'],
-                port=dn_config['port']
-            )
-            
-            response = self.namenode_stub.RegisterDataNode(request)
-            if response.success:
-                print(f"✅ Registrado exitosamente con NameNode: {response.message}")
-            else:
-                print(f"⚠️  Error en registro: {response.message}")
+        max_retries = 5
+        retry_count = 0
+        
+        while retry_count < max_retries:
+            try:
+                nn_config = self.config['namenode']
+                nn_host = nn_config['host'].strip()
+                nn_port = nn_config['port']
                 
-        except Exception as e:
-            print(f"❌ Error conectando con NameNode: {e}")
+                print(f"🔗 Intentando conectar con NameNode: {nn_host}:{nn_port}")
+                
+                channel = grpc.insecure_channel(f"{nn_host}:{nn_port}")
+                self.namenode_stub = namenode_pb2_grpc.NameNodeServiceStub(channel)
+                
+                # Obtener la IP pública de esta instancia
+                import requests
+                try:
+                    my_ip = requests.get('http://169.254.169.254/latest/meta-data/public-ipv4', timeout=5).text
+                    print(f"📍 IP pública detectada: {my_ip}")
+                except:
+                    my_ip = "localhost"
+                    print("⚠️  No se pudo obtener IP pública, usando localhost")
+                
+                # Usar el puerto configurado para este DataNode
+                my_port = self.config['datanodes'][self.node_id]['port']
+                
+                request = namenode_pb2.DataNodeInfo(
+                    host=my_ip,
+                    port=my_port
+                )
+                
+                response = self.namenode_stub.RegisterDataNode(request)
+                if response.success:
+                    print(f"✅ Registrado exitosamente con NameNode: {response.message}")
+                    return
+                else:
+                    print(f"⚠️  Error en registro: {response.message}")
+                    
+            except Exception as e:
+                retry_count += 1
+                print(f"❌ Error conectando con NameNode (intento {retry_count}/{max_retries}): {e}")
+                if retry_count < max_retries:
+                    print(f"🔄 Reintentando en 5 segundos...")
+                    time.sleep(5)
+                else:
+                    print("❌ No se pudo conectar con el NameNode después de varios intentos")
     
     def StoreBlock(self, request, context):
         """Almacenar un bloque de datos"""

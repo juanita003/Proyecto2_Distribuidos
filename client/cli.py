@@ -3,18 +3,27 @@ import yaml
 import os
 import sys
 
-# Importar archivos proto
+# Importar archivos proto desde namenode
 sys.path.insert(0, 'namenode')
-sys.path.insert(0, 'datanode')
 
 try:
     import namenode_pb2
     import namenode_pb2_grpc
+except ImportError as e:
+    print(f"Error importando archivos proto: {e}")
+    print("Asegúrate de estar en el directorio Proyecto2_Distribuidos")
+    sys.exit(1)
+
+# Para conectar con datanodes, necesitamos sus archivos proto también
+try:
+    # Generar archivos proto de datanode si no existen
+    if not os.path.exists('datanode_pb2.py'):
+        os.system('python -m grpc_tools.protoc -I./proto --python_out=. --grpc_python_out=. ./proto/datanode.proto')
+    
     import datanode_pb2
     import datanode_pb2_grpc
 except ImportError as e:
-    print(f"Error importando archivos proto: {e}")
-    print("Asegúrate de haber generado los archivos proto para namenode y datanode")
+    print(f"Error importando archivos proto del datanode: {e}")
     sys.exit(1)
 
 class DFSClient:
@@ -70,16 +79,16 @@ class DFSClient:
                     print(f"📦 Almacenando bloque {i+1}/{len(create_response.blocks)}: {block_info.block_id}")
                     
                     # Enviar bloque a cada DataNode asignado
-                    for datanode_info in block_info.datanodes:
+                    for j, datanode_info in enumerate(block_info.datanodes):
                         success = self._store_block_in_datanode(
                             datanode_info, 
                             block_info.block_id, 
                             data
                         )
                         if success:
-                            print(f"  ✅ Almacenado en {datanode_info.host}:{datanode_info.port}")
+                            print(f"  ✅ Réplica {j+1} almacenada en {datanode_info.host}:{datanode_info.port}")
                         else:
-                            print(f"  ❌ Error almacenando en {datanode_info.host}:{datanode_info.port}")
+                            print(f"  ❌ Error almacenando réplica {j+1} en {datanode_info.host}:{datanode_info.port}")
             
             print(f"🎉 Archivo subido exitosamente: {remote_filename}")
             return True
@@ -91,6 +100,7 @@ class DFSClient:
     def _store_block_in_datanode(self, datanode_info, block_id, data):
         """Almacenar un bloque en un DataNode específico"""
         try:
+            print(f"    🔗 Conectando a {datanode_info.host}:{datanode_info.port}...")
             channel = grpc.insecure_channel(f"{datanode_info.host}:{datanode_info.port}")
             stub = datanode_pb2_grpc.DataNodeServiceStub(channel)
             
@@ -99,13 +109,13 @@ class DFSClient:
                 data=data
             )
             
-            response = stub.StoreBlock(request)
+            response = stub.StoreBlock(request, timeout=30)
             channel.close()
             
             return response.success
             
         except Exception as e:
-            print(f"    Error conectando con DataNode {datanode_info.host}:{datanode_info.port}: {e}")
+            print(f"    ❌ Error conectando con DataNode {datanode_info.host}:{datanode_info.port}: {e}")
             return False
     
     def download_file(self, remote_filename, local_path):
@@ -147,17 +157,20 @@ class DFSClient:
         """Recuperar un bloque de cualquiera de los DataNodes que lo tienen"""
         for datanode_info in block_info.datanodes:
             try:
+                print(f"    🔗 Intentando obtener de {datanode_info.host}:{datanode_info.port}...")
                 channel = grpc.insecure_channel(f"{datanode_info.host}:{datanode_info.port}")
                 stub = datanode_pb2_grpc.DataNodeServiceStub(channel)
                 
                 request = datanode_pb2.RetrieveBlockRequest(block_id=block_info.block_id)
-                response = stub.RetrieveBlock(request)
+                response = stub.RetrieveBlock(request, timeout=30)
                 
                 channel.close()
                 
                 if response.success:
                     print(f"    ✅ Obtenido de {datanode_info.host}:{datanode_info.port}")
                     return response.data
+                else:
+                    print(f"    ⚠️  {datanode_info.host}:{datanode_info.port}: {response.message}")
                     
             except Exception as e:
                 print(f"    ⚠️  Error con {datanode_info.host}:{datanode_info.port}: {e}")
@@ -185,7 +198,11 @@ class DFSClient:
             return []
 
 def main():
-    client = DFSClient()
+    try:
+        client = DFSClient()
+    except Exception as e:
+        print(f"❌ Error conectando con el sistema: {e}")
+        return
     
     while True:
         print("\n" + "="*50)
