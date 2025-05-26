@@ -14,27 +14,38 @@ class ArchivosControlador:
     def __init__(self):
         self.archivos_servicio = ArchivosServicio()
         self.bloques_servicio = BloquesServicio()
-
-    def autenticar(self, f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            auth = request.authorization
-            if not auth or not self._autenticar_usuario(auth.username, auth.password):
-                return jsonify({
-                    'success': False, 
-                    'error': 'Autenticación requerida'
-                }), 401
-            g.usuario = auth.username
-            return f(*args, **kwargs)
-        return decorated_function
-
-    def _autenticar_usuario(self, username, password):
+    
+    @staticmethod
+    def _autenticar_usuario(username, password):
         usuarios_validos = {
             'admin': 'admin123',
             'user1': 'pass123',
             'user2': 'pass456'
         }
         return usuarios_validos.get(username) == password
+    
+    @classmethod
+    def autenticar(cls, f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            # El primer argumento es 'self' cuando se llama desde una instancia
+            self = args[0] if args else None
+            
+            auth = request.authorization
+            if not auth or not cls._autenticar_usuario(auth.username, auth.password):
+                return jsonify({
+                    'success': False, 
+                    'error': 'Autenticación requerida'
+                }), 401
+            g.usuario = auth.username
+            
+            if self:
+                # Si se llama desde una instancia, pasamos 'self' correctamente
+                return f(*args, **kwargs)
+            else:
+                # Si se llama sin instancia (menos común)
+                return f(**kwargs)
+        return decorated_function
 
     @archivos_bp.route('/upload', methods=['POST'])
     @autenticar
@@ -100,7 +111,7 @@ class ArchivosControlador:
 # Crear instancia del controlador y registrar rutas
 controlador = ArchivosControlador()
 
-# Registrar manualmente las rutas (solución para el problema de registro)
+# Registrar manualmente las rutas
 archivos_bp.add_url_rule(
     '/upload',
     view_func=controlador.upload_file,
