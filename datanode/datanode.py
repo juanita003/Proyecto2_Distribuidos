@@ -24,14 +24,20 @@ except ImportError as e:
 class DataNode(datanode_pb2_grpc.DataNodeServiceServicer):
     def __init__(self, config):
         self.config = config
-        
         # Obtener mi IP pública para identificarme
         try:
-            self.my_ip = requests.get('http://169.254.169.254/latest/meta-data/public-ipv4', timeout=5).text
+            # Cambiar el endpoint para obtener la IP pública
+            self.my_ip = requests.get('http://checkip.amazonaws.com', timeout=5).text.strip()
             print(f"📍 Mi IP pública: {self.my_ip}")
-        except:
-            self.my_ip = "localhost"
-            print("⚠️  No se pudo obtener IP pública, usando localhost")
+        except Exception as e:
+            print(f"⚠️  Error obteniendo IP pública: {e}")
+            # Fallback: intentar con el servicio de metadatos de AWS
+            try:
+                self.my_ip = requests.get('http://169.254.169.254/latest/meta-data/public-ipv4', timeout=5).text.strip()
+                print(f"📍 Mi IP pública (fallback): {self.my_ip}")
+            except:
+                self.my_ip = "localhost"
+                print("⚠️  No se pudo obtener IP pública, usando localhost")
         
         # Buscar mi configuración en la lista de datanodes
         self.my_config = None
