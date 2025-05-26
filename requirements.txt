@@ -39,7 +39,6 @@ lz4==4.3.3  # Compresión rápida para transferencias
 zstandard==0.22.0  # Algoritmo de compresión moderno
 
 # Concurrencia y threading
-concurrent-futures==3.1.1  # Backport para Python < 3.2
 threadpoolctl==3.2.0  # Control de pools de threads
 
 # Monitoreo y métricas

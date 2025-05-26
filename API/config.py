@@ -14,8 +14,8 @@ BLOCK_SIZE = int(os.getenv('BLOCK_SIZE', 64 * 1024 * 1024))  # 64MB por defecto
 REPLICATION_FACTOR = int(os.getenv('REPLICATION_FACTOR', 2))  # Factor de replicación mínimo
 
 # Configuración de directorios
-NAMENODE_METADATA_DIR = os.getenv('NAMENODE_METADATA_DIR', './namenode_data')
-DATANODE_STORAGE_DIR = os.getenv('DATANODE_STORAGE_DIR', './datanode_data')
+NAMENODE_METADATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'namenode_data')
+DATANODE_STORAGE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'datanode_data')
 
 # Configuración de autenticación (opcional)
 ENABLE_AUTH = os.getenv('ENABLE_AUTH', 'false').lower() == 'true'

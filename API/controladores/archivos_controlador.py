@@ -10,44 +10,32 @@ logger = logging.getLogger(__name__)
 # Crear Blueprint con prefijo
 archivos_bp = Blueprint('archivos', __name__, url_prefix='/api/archivos')
 
-class ArchivosControlador:
-    def __init__(self):
-        self.archivos_servicio = ArchivosServicio()
-        self.bloques_servicio = BloquesServicio()
-    
-    @staticmethod
-    def _autenticar_usuario(username, password):
+def autenticar(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
         usuarios_validos = {
             'admin': 'admin123',
             'user1': 'pass123',
             'user2': 'pass456'
         }
-        return usuarios_validos.get(username) == password
-    
-    @classmethod
-    def autenticar(cls, f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            # El primer argumento es 'self' cuando se llama desde una instancia
-            self = args[0] if args else None
-            
-            auth = request.authorization
-            if not auth or not cls._autenticar_usuario(auth.username, auth.password):
-                return jsonify({
-                    'success': False, 
-                    'error': 'Autenticación requerida'
-                }), 401
-            g.usuario = auth.username
-            
-            if self:
-                # Si se llama desde una instancia, pasamos 'self' correctamente
-                return f(*args, **kwargs)
-            else:
-                # Si se llama sin instancia (menos común)
-                return f(**kwargs)
-        return decorated_function
+        
+        auth = request.authorization
+        if not auth or usuarios_validos.get(auth.username) != auth.password:
+            return jsonify({
+                'success': False, 
+                'error': 'Autenticación requerida'
+            }), 401
+        
+        g.usuario = auth.username
+        return f(*args, **kwargs)
+    return decorated_function
 
-    @archivos_bp.route('/upload', methods=['POST'])
+class ArchivosControlador:
+    def __init__(self):
+        self.archivos_servicio = ArchivosServicio()
+        self.bloques_servicio = BloquesServicio()
+
+    @archivos_bp.route('/upload', methods=['POST'], endpoint='upload_file')
     @autenticar
     def upload_file(self):
         """Endpoint para subir archivos al sistema distribuido"""
@@ -108,12 +96,5 @@ class ArchivosControlador:
                 'error': str(e)
             }), 500
 
-# Crear instancia del controlador y registrar rutas
+# Solo crea la instancia, no registres las rutas manualmente
 controlador = ArchivosControlador()
-
-# Registrar manualmente las rutas
-archivos_bp.add_url_rule(
-    '/upload',
-    view_func=controlador.upload_file,
-    methods=['POST']
-)
