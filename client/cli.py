@@ -1,239 +1,287 @@
+#!/usr/bin/env python3
+
 import grpc
-import yaml
 import os
 import sys
+import argparse
+from concurrent.futures import ThreadPoolExecutor
 
-# Importar archivos proto desde namenode
-sys.path.insert(0, 'namenode')
-
-try:
-    import namenode_pb2
-    import namenode_pb2_grpc
-except ImportError as e:
-    print(f"Error importando archivos proto: {e}")
-    print("Asegúrate de estar en el directorio Proyecto2_Distribuidos")
-    sys.exit(1)
-
-# Para conectar con datanodes, necesitamos sus archivos proto también
-try:
-    # Generar archivos proto de datanode si no existen
-    if not os.path.exists('datanode_pb2.py'):
-        os.system('python -m grpc_tools.protoc -I./proto --python_out=. --grpc_python_out=. ./proto/datanode.proto')
-    
-    import datanode_pb2
-    import datanode_pb2_grpc
-except ImportError as e:
-    print(f"Error importando archivos proto del datanode: {e}")
-    sys.exit(1)
+# Importar los archivos protobuf generados
+import namenode_pb2
+import namenode_pb2_grpc
 
 class DFSClient:
-    def __init__(self, config_path='config.yaml'):
-        with open(config_path) as f:
-            self.config = yaml.safe_load(f)
-        
-        # Conectar con NameNode
-        nn_config = self.config['namenode']
-        nn_host = nn_config['host'].strip()
-        nn_port = nn_config['port']
-        
-        self.namenode_channel = grpc.insecure_channel(f"{nn_host}:{nn_port}")
-        self.namenode_stub = namenode_pb2_grpc.NameNodeServiceStub(self.namenode_channel)
-        
-        print(f"✅ Conectado al NameNode: {nn_host}:{nn_port}")
+    def __init__(self, namenode_host, namenode_port=9000):
+        """Inicializar cliente DFS para conectar a instancias AWS"""
+        self.namenode_host = namenode_host
+        self.namenode_port = namenode_port
+        self.namenode_channel = None
+        self.namenode_stub = None
+        self.current_path = "/"
+        self._connect_to_namenode()
     
-    def upload_file(self, local_path, remote_filename):
-        """Subir un archivo al sistema distribuido"""
+    def _connect_to_namenode(self):
+        """Establecer conexión gRPC con el NameNode en AWS"""
         try:
-            if not os.path.exists(local_path):
-                print(f"❌ Archivo no encontrado: {local_path}")
-                return False
+            address = f"{self.namenode_host}:{self.namenode_port}"
+            self.namenode_channel = grpc.insecure_channel(address)
+            self.namenode_stub = namenode_pb2_grpc.NameNodeServiceStub(self.namenode_channel)
             
-            # Obtener información del archivo
-            file_size = os.path.getsize(local_path)
-            print(f"📤 Subiendo archivo: {local_path} -> {remote_filename} ({file_size} bytes)")
+            # Probar conexión
+            print(f"🔄 Conectando al NameNode AWS en {address}...")
+            # Hacer una prueba simple
+            test_request = namenode_pb2.ListRequest(path="/")
+            self.namenode_stub.ListFiles(test_request)
+            print(f"✅ Conectado exitosamente al NameNode en {address}")
             
-            # Crear archivo en el NameNode
-            create_request = namenode_pb2.FileMetadata(
-                filename=remote_filename,
+        except Exception as e:
+            print(f"❌ Error conectando al NameNode AWS: {e}")
+            print("💡 Verifica que:")
+            print("   - La instancia EC2 del NameNode esté ejecutándose")
+            print("   - El puerto 9000 esté abierto en el Security Group")
+            print("   - La IP pública sea correcta")
+            sys.exit(1)
+    
+    def put_file(self, local_path, remote_path=None):
+        """Subir archivo desde PC local al DFS en AWS"""
+        if not os.path.exists(local_path):
+            print(f"❌ Archivo local no encontrado: {local_path}")
+            return False
+        
+        if remote_path is None:
+            remote_path = os.path.basename(local_path)
+        
+        if not remote_path.startswith('/'):
+            remote_path = os.path.join(self.current_path, remote_path).replace('\\', '/')
+        
+        file_size = os.path.getsize(local_path)
+        print(f"📤 Subiendo {local_path} -> {remote_path} ({self._format_size(file_size)})")
+        
+        try:
+            # 1. Solicitar al NameNode la asignación de bloques
+            request = namenode_pb2.FileMetadata(
+                filename=remote_path,
                 size=file_size,
                 replication_factor=2
             )
             
-            create_response = self.namenode_stub.CreateFile(create_request)
+            print("🔄 Solicitando asignación de bloques al NameNode...")
+            response = self.namenode_stub.CreateFile(request)
             
-            if not create_response.success:
-                print("❌ Error creando archivo en NameNode")
+            if not response.success:
+                print(f"❌ NameNode rechazó la creación: {getattr(response, 'message', 'Error desconocido')}")
                 return False
             
-            print(f"✅ Archivo creado. Bloques asignados: {len(create_response.blocks)}")
+            print(f"✅ NameNode asignó {len(response.blocks)} bloques")
             
-            # Leer archivo y dividir en bloques
+            # 2. Dividir archivo en bloques
             block_size = 64 * 1024 * 1024  # 64MB
+            blocks_data = []
             
+            print("🔄 Dividiendo archivo en bloques...")
             with open(local_path, 'rb') as f:
-                for i, block_info in enumerate(create_response.blocks):
-                    data = f.read(block_size)
-                    if not data:
+                block_index = 0
+                while True:
+                    chunk = f.read(block_size)
+                    if not chunk:
                         break
-                    
-                    print(f"📦 Almacenando bloque {i+1}/{len(create_response.blocks)}: {block_info.block_id}")
-                    
-                    # Enviar bloque a cada DataNode asignado
-                    for j, datanode_info in enumerate(block_info.datanodes):
-                        success = self._store_block_in_datanode(
-                            datanode_info, 
-                            block_info.block_id, 
-                            data
-                        )
-                        if success:
-                            print(f"  ✅ Réplica {j+1} almacenada en {datanode_info.host}:{datanode_info.port}")
-                        else:
-                            print(f"  ❌ Error almacenando réplica {j+1} en {datanode_info.host}:{datanode_info.port}")
+                    blocks_data.append((block_index, chunk))
+                    print(f"   Bloque {block_index}: {self._format_size(len(chunk))}")
+                    block_index += 1
             
-            print(f"🎉 Archivo subido exitosamente: {remote_filename}")
-            return True
+            # 3. Subir cada bloque a los DataNodes usando gRPC
+            successful_uploads = 0
+            total_blocks = len(response.blocks)
             
+            for i, block_info in enumerate(response.blocks):
+                if i < len(blocks_data):
+                    block_index, block_data = blocks_data[i]
+                    print(f"📤 Subiendo bloque {i+1}/{total_blocks}: {block_info.block_id}")
+                    
+                    if self._upload_block_grpc(block_info, block_data):
+                        successful_uploads += 1
+                        print(f"   ✅ Bloque {block_info.block_id} subido")
+                    else:
+                        print(f"   ❌ Error subiendo bloque {block_info.block_id}")
+            
+            if successful_uploads == total_blocks:
+                print(f"🎉 Archivo subido completamente: {remote_path}")
+                print(f"   📊 {total_blocks} bloques, {self._format_size(file_size)} total")
+                return True
+            else:
+                print(f"⚠️  Upload parcial: {successful_uploads}/{total_blocks} bloques")
+                return False
+                
+        except grpc.RpcError as e:
+            print(f"❌ Error gRPC con NameNode: {e.code()} - {e.details()}")
+            return False
         except Exception as e:
-            print(f"❌ Error subiendo archivo: {e}")
+            print(f"❌ Error inesperado: {e}")
             return False
     
-    def _store_block_in_datanode(self, datanode_info, block_id, data):
-        """Almacenar un bloque en un DataNode específico"""
-        try:
-            print(f"    🔗 Conectando a {datanode_info.host}:{datanode_info.port}...")
-            channel = grpc.insecure_channel(f"{datanode_info.host}:{datanode_info.port}")
-            stub = datanode_pb2_grpc.DataNodeServiceStub(channel)
-            
-            request = datanode_pb2.StoreBlockRequest(
-                block_id=block_id,
-                data=data
-            )
-            
-            response = stub.StoreBlock(request, timeout=30)
-            channel.close()
-            
-            return response.success
-            
-        except Exception as e:
-            print(f"    ❌ Error conectando con DataNode {datanode_info.host}:{datanode_info.port}: {e}")
+    def _upload_block_grpc(self, block_info, block_data):
+        """Subir bloque a DataNode usando gRPC"""
+        if not block_info.datanodes:
             return False
+        
+        # Intentar con cada DataNode hasta que uno funcione
+        for datanode in block_info.datanodes:
+            try:
+                channel = grpc.insecure_channel(f"{datanode.host}:{datanode.port}")
+                stub = namenode_pb2_grpc.DataNodeServiceStub(channel)
+                
+                request = namenode_pb2.BlockData(
+                    block_id=block_info.block_id,
+                    data=block_data,
+                    replicas=[dn for dn in block_info.datanodes if dn != datanode]
+                )
+                
+                response = stub.StoreBlock(request)
+                return response.success
+                
+            except grpc.RpcError as e:
+                print(f"   ⚠️  Error con DataNode {datanode.host}: {e.details()}")
+                continue
+        
+        return False
     
-    def download_file(self, remote_filename, local_path):
-        """Descargar un archivo del sistema distribuido"""
+    def get_file(self, remote_path, local_path=None):
+        """Descargar archivo del DFS AWS al PC local"""
+        if local_path is None:
+            local_path = os.path.basename(remote_path)
+        
+        if not remote_path.startswith('/'):
+            remote_path = os.path.join(self.current_path, remote_path).replace('\\', '/')
+        
+        print(f"📥 Descargando {remote_path} -> {local_path}")
+        
         try:
-            print(f"📥 Descargando archivo: {remote_filename} -> {local_path}")
-            
-            # Obtener ubicaciones de bloques del NameNode
-            request = namenode_pb2.FileRequest(filename=remote_filename)
+            # 1. Obtener ubicaciones de bloques del NameNode
+            request = namenode_pb2.FileRequest(filename=remote_path)
             response = self.namenode_stub.GetBlockLocations(request)
             
             if not response.blocks:
-                print(f"❌ Archivo no encontrado: {remote_filename}")
+                print(f"❌ Archivo no encontrado: {remote_path}")
                 return False
             
-            print(f"📦 Descargando {len(response.blocks)} bloques...")
+            print(f"📍 Archivo tiene {len(response.blocks)} bloques")
             
-            # Descargar cada bloque
+            # 2. Descargar cada bloque desde los DataNodes usando gRPC
+            all_blocks_data = {}
+            
+            for i, block_info in enumerate(response.blocks):
+                print(f"📥 Descargando bloque {i+1}/{len(response.blocks)}: {block_info.block_id}")
+                block_data = self._download_block_grpc(block_info)
+                
+                if block_data is not None:
+                    all_blocks_data[i] = block_data
+                    print(f"   ✅ Bloque {i+1} descargado ({self._format_size(len(block_data))})")
+                else:
+                    print(f"   ❌ Error descargando bloque {i+1}")
+                    return False
+            
+            # 3. Ensamblar archivo completo
+            print("🔄 Ensamblando archivo...")
             with open(local_path, 'wb') as f:
-                for i, block_info in enumerate(response.blocks):
-                    print(f"📦 Descargando bloque {i+1}/{len(response.blocks)}: {block_info.block_id}")
-                    
-                    data = self._retrieve_block_from_datanode(block_info)
-                    if data:
-                        f.write(data)
-                        print(f"  ✅ Bloque descargado ({len(data)} bytes)")
-                    else:
-                        print(f"  ❌ Error descargando bloque {block_info.block_id}")
-                        return False
+                for i in range(len(all_blocks_data)):
+                    f.write(all_blocks_data[i])
             
-            print(f"🎉 Archivo descargado exitosamente: {local_path}")
+            file_size = os.path.getsize(local_path)
+            print(f"🎉 Archivo descargado: {local_path} ({self._format_size(file_size)})")
             return True
             
+        except grpc.RpcError as e:
+            print(f"❌ Error gRPC: {e.code()} - {e.details()}")
+            return False
         except Exception as e:
-            print(f"❌ Error descargando archivo: {e}")
+            print(f"❌ Error inesperado: {e}")
             return False
     
-    def _retrieve_block_from_datanode(self, block_info):
-        """Recuperar un bloque de cualquiera de los DataNodes que lo tienen"""
-        for datanode_info in block_info.datanodes:
+    def _download_block_grpc(self, block_info):
+        """Descargar bloque desde DataNode usando gRPC"""
+        # Intentar con cada DataNode hasta que uno funcione
+        for datanode in block_info.datanodes:
             try:
-                print(f"    🔗 Intentando obtener de {datanode_info.host}:{datanode_info.port}...")
-                channel = grpc.insecure_channel(f"{datanode_info.host}:{datanode_info.port}")
-                stub = datanode_pb2_grpc.DataNodeServiceStub(channel)
+                channel = grpc.insecure_channel(f"{datanode.host}:{datanode.port}")
+                stub = namenode_pb2_grpc.DataNodeServiceStub(channel)
                 
-                request = datanode_pb2.RetrieveBlockRequest(block_id=block_info.block_id)
-                response = stub.RetrieveBlock(request, timeout=30)
+                request = namenode_pb2.BlockRequest(block_id=block_info.block_id)
+                response = stub.GetBlock(request)
+                return response.data
                 
-                channel.close()
-                
-                if response.success:
-                    print(f"    ✅ Obtenido de {datanode_info.host}:{datanode_info.port}")
-                    return response.data
-                else:
-                    print(f"    ⚠️  {datanode_info.host}:{datanode_info.port}: {response.message}")
-                    
-            except Exception as e:
-                print(f"    ⚠️  Error con {datanode_info.host}:{datanode_info.port}: {e}")
+            except grpc.RpcError as e:
+                print(f"   ⚠️  Error con DataNode {datanode.host}: {e.details()}")
                 continue
         
         return None
     
-    def list_files(self):
-        """Listar archivos en el sistema"""
+    def ls(self, path=None):
+        """Listar archivos en el DFS"""
+        if path is None:
+            path = self.current_path
+        elif not path.startswith('/'):
+            path = os.path.join(self.current_path, path).replace('\\', '/')
+        
         try:
-            request = namenode_pb2.ListRequest(path="/")
+            request = namenode_pb2.ListRequest(path=path)
             response = self.namenode_stub.ListFiles(request)
             
-            if response.files:
-                print("📁 Archivos en el sistema:")
-                for filename in response.files:
-                    print(f"  - {filename}")
-            else:
-                print("📁 No hay archivos en el sistema")
-                
-            return response.files
+            if not response.files:
+                print(f"📁 Directorio vacío: {path}")
+                return
             
-        except Exception as e:
-            print(f"❌ Error listando archivos: {e}")
-            return []
+            print(f"📁 Contenido de {path}:")
+            for file in response.files:
+                print(f"   📄 {file}")
+            
+        except grpc.RpcError as e:
+            print(f"❌ Error listando archivos: {e.details()}")
+    
+    def _format_size(self, size_bytes):
+        """Formatear tamaño en bytes a formato legible"""
+        for unit in ['B', 'KB', 'MB', 'GB']:
+            if size_bytes < 1024:
+                return f"{size_bytes:.1f} {unit}"
+            size_bytes /= 1024
+        return f"{size_bytes:.1f} TB"
 
 def main():
-    try:
-        client = DFSClient()
-    except Exception as e:
-        print(f"❌ Error conectando con el sistema: {e}")
+    parser = argparse.ArgumentParser(description='Cliente CLI para DFS distribuido en AWS')
+    parser.add_argument('--namenode', required=True, help='IP pública del NameNode en AWS')
+    parser.add_argument('--port', default=9000, type=int, help='Puerto del NameNode (default: 9000)')
+    
+    subparsers = parser.add_subparsers(dest='command', help='Comandos disponibles')
+    
+    # Comando put
+    put_parser = subparsers.add_parser('put', help='Subir archivo al DFS')
+    put_parser.add_argument('local_file', help='Archivo local a subir')
+    put_parser.add_argument('remote_file', nargs='?', help='Nombre en el DFS (opcional)')
+    
+    # Comando get
+    get_parser = subparsers.add_parser('get', help='Descargar archivo del DFS')
+    get_parser.add_argument('remote_file', help='Archivo en el DFS')
+    get_parser.add_argument('local_file', nargs='?', help='Nombre local (opcional)')
+    
+    # Comando ls
+    ls_parser = subparsers.add_parser('ls', help='Listar archivos')
+    ls_parser.add_argument('path', nargs='?', help='Ruta a listar (opcional)')
+    
+    args = parser.parse_args()
+    
+    if not args.command:
+        parser.print_help()
         return
     
-    while True:
-        print("\n" + "="*50)
-        print("🗂️  CLIENTE SISTEMA DE ARCHIVOS DISTRIBUIDO")
-        print("="*50)
-        print("1. Subir archivo")
-        print("2. Descargar archivo")
-        print("3. Listar archivos")
-        print("4. Salir")
-        
-        choice = input("\nSelecciona una opción: ").strip()
-        
-        if choice == "1":
-            local_path = input("Ruta del archivo local: ").strip()
-            remote_name = input("Nombre en el sistema remoto: ").strip()
-            client.upload_file(local_path, remote_name)
-            
-        elif choice == "2":
-            remote_name = input("Nombre del archivo remoto: ").strip()
-            local_path = input("Ruta de descarga local: ").strip()
-            client.download_file(remote_name, local_path)
-            
-        elif choice == "3":
-            client.list_files()
-            
-        elif choice == "4":
-            print("👋 ¡Hasta luego!")
-            break
-            
-        else:
-            print("❌ Opción inválida")
+    # Crear cliente y conectar al NameNode AWS
+    client = DFSClient(args.namenode, args.port)
+    
+    # Ejecutar comando
+    if args.command == 'put':
+        client.put_file(args.local_file, args.remote_file)
+    elif args.command == 'get':
+        client.get_file(args.remote_file, args.local_file)
+    elif args.command == 'ls':
+        client.ls(args.path)
 
 if __name__ == '__main__':
     main()

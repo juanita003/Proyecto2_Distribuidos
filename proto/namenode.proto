@@ -1,50 +1,156 @@
 syntax = "proto3";
 
+// Servicio principal del NameNode
 service NameNodeService {
+    // Registro de DataNodes
     rpc RegisterDataNode (DataNodeInfo) returns (RegistrationResponse);
-    rpc GetBlockLocations (FileRequest) returns (BlockLocations);
-    rpc CreateFile (FileMetadata) returns (FileResponse);
+    
+    // Obtener ubicaciones de bloques de un archivo
+    rpc GetBlockLocations (FileRequest) returns (BlockLocationsResponse);
+    
+    // Crear un nuevo archivo (asignación de bloques)
+    rpc CreateFile (FileMetadata) returns (CreateFileResponse);
+    
+    // Listar archivos en un directorio
     rpc ListFiles (ListRequest) returns (ListResponse);
+    
+    // Eliminar un archivo
+    rpc DeleteFile (FileRequest) returns (DeleteResponse);
+    
+    // Obtener información de un archivo
+    rpc GetFileInfo (FileRequest) returns (FileInfoResponse);
 }
 
+// Información de un DataNode
 message DataNodeInfo {
     string host = 1;
     int32 port = 2;
+    string node_id = 3;  // ID único del nodo
 }
 
+// Respuesta de registro de DataNode
 message RegistrationResponse {
     bool success = 1;
     string message = 2;
+    string node_id = 3;  // ID asignado al DataNode
 }
 
+// Solicitud de archivo
 message FileRequest {
     string filename = 1;
+    string path = 2;     // Ruta completa opcional
 }
 
-message BlockLocations {
-    repeated BlockInfo blocks = 1;
+// Respuesta con ubicaciones de bloques
+message BlockLocationsResponse {
+    bool success = 1;
+    string message = 2;
+    repeated BlockAssignment blocks = 3;
 }
 
+// Asignación de bloque con sus réplicas
+message BlockAssignment {
+    string block_id = 1;
+    int32 block_index = 2;           // Índice del bloque en el archivo
+    int64 block_size = 3;            // Tamaño del bloque
+    int64 offset = 4;                // Offset en el archivo original
+    repeated DataNodeInfo datanodes = 5;  // DataNodes que contienen este bloque
+    DataNodeInfo primary_datanode = 6;    // DataNode primario (leader)
+}
+
+// Información de bloque (versión simplificada para compatibilidad)
 message BlockInfo {
     string block_id = 1;
     repeated DataNodeInfo datanodes = 2;
 }
 
+// Metadata para crear archivo
 message FileMetadata {
     string filename = 1;
     int64 size = 2;
     int32 replication_factor = 3;
+    string path = 4;                 // Ruta del directorio
+    int64 block_size = 5;           // Tamaño de bloque personalizado (opcional)
 }
 
+// Respuesta de creación de archivo
+message CreateFileResponse {
+    bool success = 1;
+    string message = 2;
+    repeated BlockAssignment blocks = 3;
+    string file_id = 4;             // ID único del archivo
+}
+
+// Respuesta compatible con el código actual
 message FileResponse {
     bool success = 1;
     repeated BlockInfo blocks = 2;
+    string message = 3;
 }
 
+// Solicitud para listar archivos
 message ListRequest {
     string path = 1;
+    bool recursive = 2;             // Listar recursivamente
 }
 
+// Respuesta con lista de archivos
 message ListResponse {
-    repeated string files = 1;
+    bool success = 1;
+    string message = 2;
+    repeated FileEntry files = 3;
+}
+
+// Entrada de archivo o directorio
+message FileEntry {
+    string name = 1;
+    string path = 2;
+    bool is_directory = 3;
+    int64 size = 4;
+    int64 created_at = 5;
+    int64 modified_at = 6;
+    int32 block_count = 7;
+    int32 replication_factor = 8;
+}
+
+// Respuesta de eliminación
+message DeleteResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+// Respuesta con información de archivo
+message FileInfoResponse {
+    bool success = 1;
+    string message = 2;
+    FileEntry file_info = 3;
+    repeated BlockAssignment blocks = 4;
+}
+
+// Mensaje para compatibilidad con BlockLocations del código actual
+message BlockLocations {
+    repeated BlockInfo blocks = 1;
+}
+
+// Heartbeat de DataNode (para futuras extensiones)
+message HeartbeatRequest {
+    string node_id = 1;
+    int64 available_space = 2;
+    int64 used_space = 3;
+    int32 block_count = 4;
+    repeated string block_ids = 5;   // IDs de bloques que contiene
+}
+
+message HeartbeatResponse {
+    bool success = 1;
+    string message = 2;
+    repeated string blocks_to_delete = 3;  // Bloques que debe eliminar
+    repeated BlockReplicationTask replication_tasks = 4;  // Tareas de replicación
+}
+
+// Tarea de replicación de bloque
+message BlockReplicationTask {
+    string block_id = 1;
+    DataNodeInfo source_datanode = 2;
+    DataNodeInfo target_datanode = 3;
 }
