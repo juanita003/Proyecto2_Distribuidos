@@ -38,6 +38,9 @@ msgpack==1.0.7  # Serialización binaria eficiente
 lz4==4.3.3  # Compresión rápida para transferencias
 zstandard==0.22.0  # Algoritmo de compresión moderno
 
+# Concurrencia y threading
+concurrent-futures==3.1.1  # Backport para Python < 3.2
+threadpoolctl==3.2.0  # Control de pools de threads
 
 # Monitoreo y métricas
 psutil==5.9.8  # Información del sistema (CPU, memoria, disco)
@@ -51,7 +54,6 @@ configargparse==1.7  # Parsing de argumentos y configuración
 pydantic==2.6.1  # Validación de esquemas de datos
 jsonschema==4.21.1  # Validación de JSON
 
-
 # Utilidades adicionales
 colorama==0.4.6  # Colores en terminal
 tabulate==0.9.0  # Formateo de tablas en CLI
@@ -60,7 +62,6 @@ schedule==1.2.1  # Programación de tareas
 
 # Análisis y debugging
 memory-profiler==0.61.0  # Profiling de memoria
-line-profiler==4.1.1  # Profiling de líneas de código
 
 # Formateo de código
 black==24.2.0  # Formateador de código
