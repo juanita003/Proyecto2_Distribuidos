@@ -305,23 +305,25 @@ class BloquesServicio:
         
         return datanodes_inactivos
 
+# Implementar correctamente el método subir_bloque (fuera de la clase)
 def subir_bloque(self, bloque_id: str, data: bytes, leader_uri: str) -> bool:
     """Envía un bloque al DataNode líder para su almacenamiento"""
     try:
-        # Implementación usando requests (puedes cambiarlo a gRPC)
         response = requests.post(
             f"{leader_uri}/bloques/{bloque_id}",
             data=data,
-            headers={'Content-Type': 'application/octet-stream'}
+            headers={'Content-Type': 'application/octet-stream'},
+            timeout=10
         )
         
         if response.status_code != 201:
             logger.error(f"DataNode respondió con error: {response.text}")
             return False
             
-        # El líder debe replicar a los followers (eso lo maneja el DataNode)
         return True
         
     except Exception as e:
         logger.error(f"Error subiendo bloque {bloque_id} a {leader_uri}: {str(e)}")
         return False
+
+# Añadir este método a la clase BloquesServicio

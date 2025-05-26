@@ -15,17 +15,25 @@ class ArchivosControlador:
         self.bloques_servicio = BloquesServicio()
 
     @staticmethod
-    def autenticar_usuario():
-        """Decorador para autenticar usuario (básico)"""
-        def decorator(f):
-            @wraps(f)
-            def decorated_function(*args, **kwargs):
-                usuario = request.headers.get('X-Usuario', 'default')
-                g.usuario = usuario
-                return f(*args, **kwargs)
-            return decorated_function
-        return decorator
+# Modificar el decorador @autenticar_usuario para que sea consistente
+    def autenticar_usuario(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            auth = request.authorization
+            if not auth or not self.autenticar_usuario_basico(auth.username, auth.password):
+                return jsonify({'success': False, 'error': 'Autenticación requerida'}), 401
+            g.usuario = auth.username
+            return f(*args, **kwargs)
+        return decorated_function
 
+# Añadir método de autenticación básica
+def autenticar_usuario_basico(self, username, password):
+    usuarios_validos = {
+        'admin': 'admin123',
+        'user1': 'pass123',
+        'user2': 'pass456'
+    }
+    return usuarios_validos.get(username) == password
     @archivos_bp.route('/health', methods=['GET'])
     def health_check(self):
         """Verificación de salud del servicio de archivos"""
