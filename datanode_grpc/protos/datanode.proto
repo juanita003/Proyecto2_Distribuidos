@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package datanode;
+
+// Mensajes
+message WriteBlockRequest {
+  string block_id = 1;
+  bytes   data     = 2;
+}
+message WriteBlockResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ReadBlockRequest {
+  string block_id = 1;
+}
+message ReadBlockResponse {
+  bytes data = 1;
+}
+
+// Servicio
+service DataNodeService {
+  // Guarda un bloque
+  rpc WriteBlock(WriteBlockRequest) returns (WriteBlockResponse);
+  // Lee un bloque
+  rpc ReadBlock(ReadBlockRequest)  returns (ReadBlockResponse);
+}
