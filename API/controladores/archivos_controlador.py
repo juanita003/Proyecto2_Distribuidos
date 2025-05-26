@@ -399,5 +399,5 @@ class ArchivosControlador:
                 'error': str(e)
             }), 500
 
-# Instanciar y registrar el controlador
-controlador = ArchivosControlador()
+# Crea una instancia del controlador
+archivos_controlador = ArchivosControlador()

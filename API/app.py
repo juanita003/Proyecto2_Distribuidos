@@ -7,6 +7,7 @@ import time
 
 from controladores.bloques_controlador import BloquesControlador
 from controladores.archivos_controlador import ArchivosControlador
+from controladores.archivos_controlador import archivos_bp  # Añade esto con las otras importaciones
 from modelos.archivo_metadata import ArchivoMetadata
 from modelos.bloque_info import BloqueInfo
 from servicios.archivos_servicio import ArchivosServicio
@@ -22,7 +23,8 @@ logger = logging.getLogger(__name__)
 # Crear aplicación Flask
 app = Flask(__name__)
 CORS(app)
-
+# Registra el Blueprint de archivos
+app.register_blueprint(archivos_bp)
 # Inicializar controlador de bloques
 controlador = BloquesControlador()
 
