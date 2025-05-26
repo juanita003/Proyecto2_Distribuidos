@@ -1,0 +1,35 @@
+{
+  "2ed43443-fd89-43aa-bf2f-e2545fbb5a46": {
+    "node_id": "2ed43443-fd89-43aa-bf2f-e2545fbb5a46",
+    "host": "localhost",
+    "puerto": 5001,
+    "estado": "activo",
+    "espacio_total": 10737418240,
+    "espacio_usado": 0,
+    "bloques_almacenados": [],
+    "ultima_conexion": "2025-05-26T16:06:44.840173",
+    "fecha_registro": "2025-05-26T16:06:44.840173"
+  },
+  "7d8d3386-7331-4afc-b9b2-f494000b3121": {
+    "node_id": "7d8d3386-7331-4afc-b9b2-f494000b3121",
+    "host": "localhost",
+    "puerto": 5002,
+    "estado": "activo",
+    "espacio_total": 10737418240,
+    "espacio_usado": 0,
+    "bloques_almacenados": [],
+    "ultima_conexion": "2025-05-26T16:06:44.840173",
+    "fecha_registro": "2025-05-26T16:06:44.840173"
+  },
+  "d685b78f-ee55-46dd-8e0d-baf3c012b3a9": {
+    "node_id": "d685b78f-ee55-46dd-8e0d-baf3c012b3a9",
+    "host": "localhost",
+    "puerto": 5003,
+    "estado": "activo",
+    "espacio_total": 10737418240,
+    "espacio_usado": 0,
+    "bloques_almacenados": [],
+    "ultima_conexion": "2025-05-26T16:06:44.840173",
+    "fecha_registro": "2025-05-26T16:06:44.840173"
+  }
+}

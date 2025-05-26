@@ -1,0 +1,12 @@
+{
+  "/root": {
+    "nombre": "root",
+    "ruta": "/root",
+    "usuario": "default",
+    "archivos": [],
+    "subdirectorios": [],
+    "fecha_creacion": "2025-05-26T16:06:44.840173",
+    "fecha_modificacion": "2025-05-26T16:06:44.840173",
+    "permisos": "755"
+  }
+}

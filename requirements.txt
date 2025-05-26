@@ -4,6 +4,12 @@ grpcio-tools==1.62.1
 protobuf==4.25.3
 pyyaml==6.0.1
 
+# Framework web para API REST
+flask==3.0.2
+flask-cors==4.0.0
+flask-httpauth==4.8.0  # Para autenticación HTTP básica mejorada
+werkzeug==3.0.1
+
 # Utilidades y logging
 python-dotenv==1.0.1
 loguru==0.7.2
@@ -14,14 +20,52 @@ pytest==8.0.2
 pytest-cov==4.1.0
 mypy==1.8.0
 flake8==7.0.0
+pytest-flask==1.3.0  # Para testing de endpoints Flask
 
 # Manejo de archivos
 filelock==3.13.1
 checksumdir==1.2.0
+watchdog==4.0.0  # Para monitoreo de cambios en archivos
+pathlib2==2.3.7  # Backport de pathlib para Python < 3.4 (si es necesario)
 
 # Networking
 requests==2.31.0
 urllib3==2.2.1
+httpx==0.27.0  # Cliente HTTP moderno alternativo a requests
 
-# Seguridad (opcional)
-cryptography==42.0.4
+# Serialización y compresión
+msgpack==1.0.7  # Serialización binaria eficiente
+lz4==4.3.3  # Compresión rápida para transferencias
+zstandard==0.22.0  # Algoritmo de compresión moderno
+
+
+# Monitoreo y métricas
+psutil==5.9.8  # Información del sistema (CPU, memoria, disco)
+prometheus-client==0.20.0  # Métricas para monitoreo
+
+# Configuración y argumentos CLI
+click==8.1.7  # Para crear CLI amigable
+configargparse==1.7  # Parsing de argumentos y configuración
+
+# Validación de datos
+pydantic==2.6.1  # Validación de esquemas de datos
+jsonschema==4.21.1  # Validación de JSON
+
+
+# Utilidades adicionales
+colorama==0.4.6  # Colores en terminal
+tabulate==0.9.0  # Formateo de tablas en CLI
+humanize==4.9.0  # Formateo humano de números y fechas
+schedule==1.2.1  # Programación de tareas
+
+# Análisis y debugging
+memory-profiler==0.61.0  # Profiling de memoria
+line-profiler==4.1.1  # Profiling de líneas de código
+
+# Formateo de código
+black==24.2.0  # Formateador de código
+isort==5.13.2  # Organizador de imports
+
+# Documentación
+sphinx==7.2.6  # Generador de documentación
+sphinx-rtd-theme==2.0.0  # Tema para documentación
