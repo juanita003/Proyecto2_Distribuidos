@@ -1,5 +1,5 @@
-NAME_NODE_HOST = ""  # Reemplazar con la IP pública del NameNode Leader
-NAME_NODE_PORT = 5000
+NAME_NODE_HOST = " 3.93.218.93"  # Reemplazar con la IP pública del NameNode Leader
+NAME_NODE_PORT = 8080
 NAME_NODE_URL = f"http://{NAME_NODE_HOST}:{NAME_NODE_PORT}"
 
 #Puerto gRPC

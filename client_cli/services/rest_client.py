@@ -1,6 +1,6 @@
 import requests
 
-BASE_URL = "http://:5000"  # Dirección del NameNode Flask API
+BASE_URL = "http:/ 3.93.218.93/:8080"  # Dirección del NameNode Flask API
 
 def register_file(filename, num_blocks):
     url = f"{BASE_URL}/files/register"
