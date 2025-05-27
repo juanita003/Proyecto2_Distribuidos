@@ -15,7 +15,6 @@ class StorageService:
         os.makedirs(self.base_dir, exist_ok=True)
 
     def _block_path(self, block_id: str) -> str:
-        # Podrías expandir para sharding según hash
         return os.path.join(self.base_dir, block_id)
 
     def store_block(self, block: Block) -> None:

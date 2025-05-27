@@ -19,7 +19,7 @@ def registrar_en_namenode(node_id, port):
     payload = {
         "host": "34.201.251.107",  # Debe ser donde el NameNode pueda accederlo
         "puerto": port,
-        "espacio_total": 100000000  # Ejemplo de espacio en bytes (ajústalo a tu caso)
+        "espacio_total": 100000000  # Ejemplo de espacio en bytes
     }
     try:
         response = requests.post(namenode_url, json=payload)
@@ -58,7 +58,7 @@ def enviar_heartbeat(node_id, port):
                 "host": "34.201.251.107",
                 "puerto": port,
                 "estado_info": {
-                    "almacenamiento_usado": 0  # puedes actualizarlo si tienes control real
+                    "almacenamiento_usado": 0
                 }
             })
             if response.status_code != 200:
