@@ -295,3 +295,24 @@ class BloquesControlador:
                     'factor_replicacion': self.factor_replicacion
                 }
             }
+def subir_bloque(self, archivo_id: str, indice: int, datos_bloque: bytes) -> Dict:
+    """Sube un bloque de datos al sistema"""
+    with self.lock:
+        bloque_id = f"{archivo_id}_bloque_{indice}"
+
+        if bloque_id not in self.bloques:
+            return {'status': 'error', 'mensaje': 'Bloque no encontrado'}
+
+        bloque = self.bloques[bloque_id]
+
+        # Calcular checksum
+        checksum = hashlib.sha256(datos_bloque).hexdigest()
+        bloque['checksum'] = checksum
+        bloque['estado'] = 'recibido'
+
+        # Aquí no se almacena el contenido real, pero se podría extender
+        return {
+            'status': 'success',
+            'bloque_id': bloque_id,
+            'checksum': checksum
+        }
