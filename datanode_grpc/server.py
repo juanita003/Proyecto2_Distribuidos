@@ -17,7 +17,7 @@ import protos.datanode_pb2      as datanode_pb2
 def registrar_en_namenode(node_id, port):
     namenode_url = namenode_url = "http://34.201.251.107:8080/datanodes/register"
     payload = {
-        "host": "ip_privada_o_publica_del_datanode",  # Debe ser donde el NameNode pueda accederlo
+        "host": "34.201.251.107",  # Debe ser donde el NameNode pueda accederlo
         "puerto": port,
         "espacio_total": 100000000  # Ejemplo de espacio en bytes (ajústalo a tu caso)
     }
