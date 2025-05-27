@@ -1,40 +1,37 @@
-from protos import datanode_pb2, datanode_pb2_grpc
+import os
+import sys
+# Permite importar common
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+import protos.datanode_pb2_grpc as datanode_pb2_grpc
+import protos.datanode_pb2      as datanode_pb2
 from common.models.block import Block as BlockModel
-from common.models.block import BlockInfo
 from services.storage_service import StorageService
 from common.utils.hashing import verify_checksum
-import os
-import grpc
 
-class DataNodeService(datanode_pb2_grpc.DataNodeServicer):
+
+class DataNodeGRPCService(datanode_pb2_grpc.DataNodeServiceServicer):
     def __init__(self, storage_dir=None):
-        # Se asume que NODE_ID está en entorno
         node_id = int(os.environ.get('NODE_ID', '1'))
         self.storage = StorageService(node_id, storage_dir)
 
-    def PutBlock(self, request, context):
-        # request contiene block_id, data y metadata
-        # Convertir a BlockModel
+    def WriteBlock(self, request, context):
+        # request: WriteBlockRequest { block_id, data }
         block_model = BlockModel(
-            block_id=request.block_info.block_id,
+            block_id=request.block_id,
             data=request.data,
-            checksum=request.block_info.checksum,
+            checksum="",
         )
-        # verificar antes de almacenar
-        if not verify_checksum(block_model.data, block_model.checksum):
-            context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Checksum mismatch")
+        # almacenar con cálculo interno de checksum
         self.storage.store_block(block_model)
-        return datanode_pb2.PutBlockResponse(status=True)
-
-    def GetBlock(self, request, context):
-        block_id = request.block_id
-        block_model = self.storage.retrieve_block(block_id)
-        # Crear BlockInfo para respuesta
-        info = datanode_pb2.BlockInfo(
-            file_name=request.file_name,
-            block_id=block_model.block_id,
-            sequence=request.sequence,
-            size=len(block_model.data),
-            checksum=block_model.checksum,
+        return datanode_pb2.WriteBlockResponse(
+            success=True,
+            message="Block stored successfully"
         )
-        return datanode_pb2.GetBlockResponse(data=block_model.data, block_info=info)
+
+    def ReadBlock(self, request, context):
+        # request: ReadBlockRequest { block_id }
+        block_model = self.storage.retrieve_block(request.block_id)
+        return datanode_pb2.ReadBlockResponse(
+            data=block_model.data
+        )

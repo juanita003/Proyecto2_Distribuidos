@@ -1,15 +1,27 @@
 import requests
 
 BASE_URL = "http:/ 3.93.218.93/:8080"  # Dirección del NameNode Flask API
+import requests
+from common.config import default_namenode_address
 
-def register_file(filename, num_blocks):
-    url = f"{BASE_URL}/files/register"
-    data = {
-        "filename": filename,
-        "num_blocks": num_blocks
+
+def register_file(file_name: str, file_size: int, block_ids: list[str]):
+    url = f"http://{default_namenode_address}/files/"
+    payload = {
+        "file_name": file_name,
+        "file_size": file_size,
+        "block_ids": block_ids
     }
-    response = requests.post(url, json=data)
-    return response.json()
+    try:
+        response = requests.post(url, json=payload)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print(f"Error del NameNode: {response.status_code} {response.text}")
+            return None
+    except Exception as e:
+        print(f"Error al contactar al NameNode: {e}")
+        return None
 
 def get_file_blocks(filename):
     url = f"{BASE_URL}/files/{filename}/blocks"

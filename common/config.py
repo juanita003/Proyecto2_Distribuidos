@@ -5,7 +5,7 @@ default_namenode_host = 'localhost'
 default_namenode_address = f"{default_namenode_host}:{default_namenode_port}"
 
 # Puerto base para DataNodes gRPC (se suma el número de nodo)
-grpc_base_port = 6000
+grpc_base_port = 50051
 
 # Tamaño de bloque por defecto en bytes (por ejemplo, 64 MiB)
 default_block_size = 64 * 1024 * 1024  # 64 MiB

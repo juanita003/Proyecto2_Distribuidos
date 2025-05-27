@@ -1,4 +1,8 @@
 import os
+import sys
+# Permite importar common
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from common.config import blocks_storage_dir
 from common.models.block import Block
 from common.utils.hashing import calculate_checksum
@@ -11,12 +15,11 @@ class StorageService:
         os.makedirs(self.base_dir, exist_ok=True)
 
     def _block_path(self, block_id: str) -> str:
-        # Opcional: usar subdirectorios según hash para equilibrio
+        # Podrías expandir para sharding según hash
         return os.path.join(self.base_dir, block_id)
 
     def store_block(self, block: Block) -> None:
         path = self._block_path(block.block_id)
-        # calcular y reasignar checksum para seguridad
         block.checksum = calculate_checksum(block.data)
         with open(path, 'wb') as f:
             f.write(block.data)
