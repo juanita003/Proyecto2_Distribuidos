@@ -40,7 +40,7 @@ class ArchivosServicio:
             
             # Crear directorio raíz si no existe
             if '/' not in self.directorios_metadata:
-                self.crear_directorio('/', 'root', 'default')
+                self.crear_directorio('/')
                 
         except Exception as e:
             logger.error(f"Error cargando metadatos: {e}")
@@ -107,28 +107,7 @@ class ArchivosServicio:
         logger.info(f"Archivo eliminado: {ruta}")
         return True
     
-    def crear_directorio(self, ruta: str, nombre: str, usuario: str = "default") -> DirectorioMetadata:
-        """Crear un nuevo directorio"""
-        ruta_completa = os.path.join(ruta, nombre).replace('\\', '/') if ruta != '/' else f"/{nombre}"
         
-        if ruta_completa in self.directorios_metadata:
-            raise ValueError(f"El directorio {ruta_completa} ya existe")
-        
-        # Verificar que el directorio padre existe (excepto para el raíz)
-        if ruta != '/' and ruta not in self.directorios_metadata:
-            raise ValueError(f"El directorio padre {ruta} no existe")
-        
-        directorio = DirectorioMetadata(nombre, ruta_completa, usuario)
-        self.directorios_metadata[ruta_completa] = directorio
-        
-        # Agregar al directorio padre (excepto para el raíz)
-        if ruta != ruta_completa and ruta in self.directorios_metadata:
-            self.directorios_metadata[ruta].agregar_subdirectorio(nombre)
-        
-        self._guardar_metadata()
-        logger.info(f"Directorio creado: {ruta_completa}")
-        return directorio
-    
     def obtener_directorio(self, ruta: str) -> Optional[DirectorioMetadata]:
         """Obtener metadatos de un directorio"""
         return self.directorios_metadata.get(ruta)
@@ -265,3 +244,38 @@ class ArchivosServicio:
         self._guardar_metadata()
         logger.info(f"Archivo movido: {ruta_origen} -> {ruta_destino}")
         return True
+    
+    def directorio_existe(self, ruta):
+        """Verifica si un directorio existe"""
+        return ruta in self.directorios_metadata
+    
+    def crear_directorio(self, ruta, nombre="root", usuario="default"):
+        """Crea un directorio recursivamente"""
+        partes = ruta.strip('/').split('/')
+        path_actual = '/'
+        
+        for parte in partes:
+            path_actual = os.path.join(path_actual, parte).replace('\\', '/')
+            if not self.directorio_existe(path_actual):
+                self._crear_directorio_simple(path_actual, usuario)
+
+    def _crear_directorio_simple(self, ruta, usuario="default"):
+        """Crea un solo directorio"""
+        nombre = os.path.basename(ruta) or '/'
+        directorio_padre = os.path.dirname(ruta) or '/'
+
+        from modelos.archivo_metadata import DirectorioMetadata
+
+        if ruta == '/':
+            # Crear directorio raíz sin padre
+            self.directorios_metadata[ruta] = DirectorioMetadata(nombre, ruta, usuario)
+            self._guardar_metadata()
+            return
+
+        if directorio_padre not in self.directorios_metadata:
+            raise ValueError(f"Directorio padre {directorio_padre} no existe")
+
+        self.directorios_metadata[ruta] = DirectorioMetadata(nombre, ruta, usuario)
+        self.directorios_metadata[directorio_padre].agregar_subdirectorio(nombre)
+        self._guardar_metadata()
+

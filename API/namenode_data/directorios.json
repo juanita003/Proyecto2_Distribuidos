@@ -8,5 +8,15 @@
     "fecha_creacion": "2025-05-26T16:06:44.840173",
     "fecha_modificacion": "2025-05-26T16:06:44.840173",
     "permisos": "755"
+  },
+  "/": {
+    "nombre": "/",
+    "ruta": "/",
+    "usuario": "default",
+    "archivos": [],
+    "subdirectorios": [],
+    "fecha_creacion": "2025-05-26T21:38:40.751099",
+    "fecha_modificacion": "2025-05-26T21:38:40.751099",
+    "permisos": "755"
   }
 }
